@@ -22,6 +22,7 @@ import android.app.ActivityGroup;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
@@ -39,8 +40,13 @@ import android.widget.Toast;
 
 import org.fourthline.cling.model.meta.Device;
 
+import java.util.ArrayList;
+import java.util.Collection;
+
 import de.yaacc.R;
 import de.yaacc.Yaacc;
+import de.yaacc.player.PlayableItem;
+import de.yaacc.player.Player;
 import de.yaacc.settings.SettingsActivity;
 import de.yaacc.upnp.UpnpClient;
 import de.yaacc.upnp.UpnpClientListener;
@@ -123,11 +129,8 @@ public class TabBrowserActivity extends ActivityGroup implements OnClickListener
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_tab_browse);
-        // local server startup
-        upnpClient = ((Yaacc)getApplicationContext()).getUpnpClient();
-
-
-        tabHost = (TabHost) findViewById(R.id.browserTabHost);
+        upnpClient = ((Yaacc) getApplicationContext()).getUpnpClient();
+        tabHost = findViewById(R.id.browserTabHost);
         tabHost.setup(this.getLocalActivityManager());
         serverTab = tabHost.newTabSpec("server").setIndicator(getResources().getString(R.string.title_activity_server_list), getResources().getDrawable(R.drawable.device_48_48)).setContent(new Intent(this, ServerListActivity.class));
         tabHost.addTab(serverTab);
@@ -142,18 +145,38 @@ public class TabBrowserActivity extends ActivityGroup implements OnClickListener
         if (appVersion > Build.VERSION_CODES.LOLLIPOP_MR1) {
             if (!checkIfAlreadyhavePermission()) {
                 requestForSpecificPermission();
-            }else{
+            } else {
                 Log.d(getClass().getName(), "All permissions granted");
             }
         }
 
         // add ourself as listener
         upnpClient.addUpnpClientListener(this);
-        if(savedInstanceState != null){
+        if (savedInstanceState != null) {
             setCurrentTab(Tabs.valueOf(savedInstanceState.getInt(CURRENT_TAB_KEY, Tabs.CONTENT.ordinal())));
-        }else if (upnpClient.getProviderDevice() != null) {
+        } else if (upnpClient.getProviderDevice() != null) {
             setCurrentTab(Tabs.CONTENT);
 
+        }
+
+        // Get intent, action and MIME type
+        Intent intent = getIntent();
+        String action = intent.getAction();
+        String type = intent.getType();
+
+
+        if (Intent.ACTION_SEND.equals(action) && type != null) {
+            Uri contentUri = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (contentUri  != null) {
+
+                PlayableItem item = new PlayableItem();
+                item.setMimeType(type);
+                item.setUri(contentUri);
+                item.setTitle(contentUri.toString());
+                ArrayList<PlayableItem> items = new ArrayList<>();
+                items.add(item);
+                upnpClient.initializePlayersWithPlayableItems(items);
+            }
         }
     }
 
